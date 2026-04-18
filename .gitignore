@@ -1,0 +1,14 @@
+node_modules
+.next
+dist
+out
+coverage
+.env
+.env.local
+.env.production
+cache
+broadcast
+artifacts
+reports
+*.log
+*.sqlite

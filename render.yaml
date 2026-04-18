@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: 0g-databounty-api
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build -w @0g-databounty/api
+    startCommand: npm run start -w @0g-databounty/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: ZERO_G_RPC_URL
+        value: https://evmrpc.0g.ai
+      - key: ZERO_G_STORAGE_INDEXER
+        value: https://indexer-storage-turbo.0g.ai
+      - key: ZERO_G_ENABLE_REAL_STORAGE
+        value: false
+      - key: ZERO_G_ENABLE_REAL_COMPUTE
+        value: false

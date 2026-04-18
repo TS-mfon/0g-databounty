@@ -1,0 +1,31 @@
+{
+  "name": "@0g-databounty/api",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@0g-databounty/shared": "file:../../packages/shared",
+    "@0gfoundation/0g-ts-sdk": "^1.2.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "ethers": "6.13.1",
+    "express": "^5.1.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/node": "^22.19.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

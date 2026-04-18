@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build -w @0g-databounty/web",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": "apps/web/.next"
+}

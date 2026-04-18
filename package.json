@@ -1,0 +1,31 @@
+{
+  "name": "0g-databounty",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Verifiable dataset bounty market for the 0G ecosystem.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @0g-databounty/shared && npm run build -w @0g-databounty/api && npm run build -w @0g-databounty/web",
+    "dev:web": "npm run dev -w @0g-databounty/web",
+    "dev:api": "npm run dev -w @0g-databounty/api",
+    "test": "npm run test:contracts && npm run typecheck",
+    "test:contracts": "forge test --root contracts",
+    "typecheck": "npm run typecheck -w @0g-databounty/shared && npm run typecheck -w @0g-databounty/api && npm run typecheck -w @0g-databounty/web",
+    "deploy:vercel": "npx vercel --prod",
+    "deploy:contract": "forge create contracts/src/DataBountyRegistry.sol:DataBountyRegistry --rpc-url https://evmrpc.0g.ai --private-key $PRIVATE_KEY --broadcast",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "axios": "^1.15.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
