@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     rootDir: .
-    buildCommand: npm install && npm run build -w @0g-databounty/api
+    buildCommand: npm install && npm run build -w @0g-databounty/shared && npm run build -w @0g-databounty/api
     startCommand: npm run start -w @0g-databounty/api
     healthCheckPath: /health
     envVars:
