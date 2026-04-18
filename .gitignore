@@ -12,3 +12,4 @@ artifacts
 reports
 *.log
 *.sqlite
+.vercel
