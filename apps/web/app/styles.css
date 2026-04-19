@@ -214,6 +214,44 @@ h3 {
   border-bottom: 1px solid var(--line);
 }
 
+.start {
+  background: var(--white);
+}
+
+.stepGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stepGrid article {
+  min-height: 150px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  background: #fbfcfa;
+}
+
+.stepGrid strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 1.05rem;
+}
+
+.stepGrid p,
+.notice {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.notice {
+  margin: 18px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff7d8;
+}
+
 .sectionHead {
   display: flex;
   justify-content: space-between;
@@ -371,6 +409,7 @@ small {
   .split,
   .flip,
   .grid,
+  .stepGrid,
   .proofGrid {
     grid-template-columns: 1fr;
   }

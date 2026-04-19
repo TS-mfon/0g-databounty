@@ -45,6 +45,10 @@ app.get("/api/proofs", (_req, res) => {
   res.json(store.proofSummary());
 });
 
+app.get("/api/examples", (_req, res) => {
+  res.json(store.examples());
+});
+
 app.get("/api/bounties", (_req, res) => {
   res.json({ bounties: store.listBounties() });
 });

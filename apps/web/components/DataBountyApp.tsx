@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { AgentProfile, Bounty, DatasetManifest, ProofSummary } from "@0g-databounty/shared";
-import { API_URL, confirmBounty, createBounty, getAgents, getBounties, getProofs, submitDataset } from "../lib/api";
+import { API_URL, confirmBounty, createBounty, getAgents, getBounties, getExamples, getProofs, submitDataset } from "../lib/api";
 import { connectWallet, parseCreatedBountyId, sendPreparedTransaction } from "../lib/wallet";
 
 const tomorrow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
@@ -52,6 +52,35 @@ export function DataBountyApp() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not reach the API.");
       setStatus("API wake-up failed. Render may still be cold-starting; press Refresh in a few seconds.");
+    }
+  }
+
+  async function loadExamples() {
+    setError("");
+    try {
+      const examples = await getExamples();
+      setBountyForm({
+        title: examples.bounty.title,
+        summary: examples.bounty.summary,
+        requirements: examples.bounty.requirements,
+        formats: examples.bounty.formats.join(","),
+        evaluationRubric: examples.bounty.evaluationRubric,
+        privacyNotes: examples.bounty.privacyNotes ?? "",
+        rewardOg: bountyForm.rewardOg,
+        deadline: examples.bounty.deadlineIso.slice(0, 16)
+      });
+      setSubmissionForm({
+        title: examples.dataset.title,
+        description: examples.dataset.description,
+        license: examples.dataset.license,
+        format: examples.dataset.format,
+        recordCount: String(examples.dataset.recordCount),
+        sourceNotes: examples.dataset.sourceNotes,
+        privacyDeclaration: examples.dataset.privacyDeclaration
+      });
+      setStatus("Loaded a real test example from the API. It is not saved as live state until you upload and sign.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load examples.");
     }
   }
 
@@ -182,6 +211,37 @@ export function DataBountyApp() {
         {error && <p className="error">{error}</p>}
       </section>
 
+      <section className="section start">
+        <div className="sectionHead">
+          <div>
+            <p className="eyebrow">Start here</p>
+            <h2>Use the product in four steps</h2>
+          </div>
+          <button onClick={loadExamples}>Load test example</button>
+        </div>
+        <div className="stepGrid">
+          <article>
+            <strong>1. Connect</strong>
+            <p>Use a wallet funded on 0G Mainnet.</p>
+          </article>
+          <article>
+            <strong>2. Create</strong>
+            <p>Upload bounty metadata to 0G Storage and escrow the reward on 0G Chain.</p>
+          </article>
+          <article>
+            <strong>3. Submit</strong>
+            <p>Contributors submit dataset manifests only after the bounty is confirmed onchain.</p>
+          </article>
+          <article>
+            <strong>4. Verify</strong>
+            <p>Proof Center displays contract, Storage roots, transactions, and Compute reports.</p>
+          </article>
+        </div>
+        <p className="notice">
+          Current mainnet readiness: {proofs?.contractAddress ? "contract configured" : "contract deployment pending funded 0G deployer"}.
+        </p>
+      </section>
+
       <section id="market" className="section">
         <div className="sectionHead">
           <p className="eyebrow">Marketplace</p>
@@ -281,7 +341,7 @@ export function DataBountyApp() {
         <div className="proofGrid">
           <div>
             <strong>Contract</strong>
-            <span>{proofs?.contractAddress ?? "Not configured yet"}</span>
+            <span>{proofs?.contractAddress ?? "Pending 0G mainnet deployment"}</span>
           </div>
           <div>
             <strong>Explorer</strong>

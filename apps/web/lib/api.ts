@@ -1,4 +1,4 @@
-import type { AgentProfile, Bounty, DatasetManifest, ProofSummary, Submission } from "@0g-databounty/shared";
+import type { AgentProfile, Bounty, BountyMetadata, DatasetManifest, ProofSummary, Submission } from "@0g-databounty/shared";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://zerog-databounty-api.onrender.com";
 
@@ -37,6 +37,10 @@ export function getAgents() {
 
 export function getProofs() {
   return request<ProofSummary>("/api/proofs");
+}
+
+export function getExamples() {
+  return request<{ bounty: BountyMetadata; dataset: Omit<DatasetManifest, "bountyId" | "contributor"> }>("/api/examples");
 }
 
 export function createBounty(metadata: unknown, rewardWei: string) {

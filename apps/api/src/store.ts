@@ -115,5 +115,42 @@ export const store = {
       storageRoots,
       computeReports
     };
+  },
+  examples() {
+    return {
+      bounty: {
+        title: "APAC agent-training dataset",
+        summary: "Public, sourced records for AI x Web3 projects, builders, tooling, and use cases across APAC.",
+        requirements:
+          "Provide structured records for active APAC AI x Web3 projects. Each row must include project name, region, category, source URL, public project link, short description, and why the record is useful for an agent builder.",
+        formats: ["json", "csv"],
+        evaluationRubric:
+          "Score completeness, source quality, duplicate resistance, region relevance, usefulness for agent workflows, and licensing clarity. Reject private personal data and unverifiable claims.",
+        privacyNotes:
+          "Use public project information only. Do not include private emails, phone numbers, wallet doxxing, leaked data, or non-public personal data.",
+        deadlineIso: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      dataset: {
+        title: "APAC AI x Web3 project sample",
+        description:
+          "A structured starter dataset containing public ecosystem records, source notes, schema fields, and sample rows for validator-agent review.",
+        license: "CC-BY-4.0",
+        format: "json",
+        recordCount: 25,
+        sampleRows: [
+          {
+            project: "Example AI Agent Marketplace",
+            region: "Singapore",
+            category: "Agent commerce",
+            source: "https://example.com/public-project-page",
+            usefulness: "Useful for mapping agent-service demand in APAC."
+          }
+        ],
+        sourceNotes:
+          "Records are sourced only from public project websites, ecosystem pages, GitHub repositories, and public X posts.",
+        privacyDeclaration:
+          "This dataset contains public project information only and excludes private personal data."
+      }
+    };
   }
 };
