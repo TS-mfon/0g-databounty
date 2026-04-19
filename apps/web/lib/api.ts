@@ -1,21 +1,30 @@
 import type { AgentProfile, Bounty, DatasetManifest, ProofSummary, Submission } from "@0g-databounty/shared";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://zerog-databounty-api.onrender.com";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    },
-    cache: "no-store"
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.error ?? `Request failed: ${response.status}`);
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {})
+        },
+        cache: "no-store"
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error ?? `Request failed: ${response.status}`);
+      }
+      return body as T;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1200 * attempt));
+    }
   }
-  return body as T;
+  throw lastError instanceof Error ? lastError : new Error("API request failed.");
 }
 
 export function getBounties() {

@@ -15,7 +15,14 @@ import { store } from "./store.js";
 import { uploadJsonTo0G } from "./storage.js";
 
 const app = express();
-app.use(cors({ origin: config.corsOrigin === "*" ? true : config.corsOrigin }));
+const allowedOrigins = config.corsOrigin.split(",").map((origin) => origin.trim());
+app.use(
+  cors({
+    origin: config.corsOrigin === "*" ? true : allowedOrigins,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+  })
+);
 app.use(express.json({ limit: "2mb" }));
 
 const abi = new Interface(dataBountyAbi);

@@ -3,7 +3,7 @@ import "dotenv/config";
 export const config = {
   port: Number(process.env.PORT ?? 8787),
   host: process.env.HOST ?? "0.0.0.0",
-  corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
+  corsOrigin: process.env.CORS_ORIGIN ?? "*",
   rpcUrl: process.env.ZERO_G_RPC_URL ?? "https://evmrpc.0g.ai",
   storageIndexer: process.env.ZERO_G_STORAGE_INDEXER ?? "https://indexer-storage-turbo.0g.ai",
   contractAddress: process.env.DATABOUNTY_CONTRACT,

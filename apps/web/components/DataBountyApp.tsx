@@ -51,7 +51,7 @@ export function DataBountyApp() {
       if (!selectedBountyId && bountyData.bounties[0]) setSelectedBountyId(bountyData.bounties[0].id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not reach the API.");
-      setStatus("API is not connected. Start the Render service or local API.");
+      setStatus("API wake-up failed. Render may still be cold-starting; press Refresh in a few seconds.");
     }
   }
 
