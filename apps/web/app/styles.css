@@ -80,6 +80,11 @@ a {
   color: var(--muted);
 }
 
+.activeLink {
+  color: var(--ink);
+  font-weight: 800;
+}
+
 .nav button,
 .sectionHead button,
 .primaryButton {
@@ -98,6 +103,31 @@ a {
   align-items: center;
   padding: clamp(42px, 7vw, 92px) clamp(18px, 5vw, 72px);
   border-bottom: 1px solid var(--line);
+}
+
+.pageHero {
+  padding: clamp(42px, 7vw, 88px) clamp(18px, 5vw, 72px) 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pageHero p {
+  max-width: 780px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.darkHero {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.darkHero .eyebrow,
+.proof .eyebrow {
+  color: var(--yellow);
+}
+
+.darkHero p {
+  color: #d8dedb;
 }
 
 .heroCopy {
@@ -266,6 +296,10 @@ h3 {
   gap: 18px;
 }
 
+.singleGrid {
+  grid-template-columns: 1fr;
+}
+
 .bountyCard,
 .agentCard,
 .empty,
@@ -305,6 +339,21 @@ h3 {
 .agentCard .needs_funding {
   background: var(--rose);
   color: var(--white);
+}
+
+.agentCard .configured {
+  background: var(--cyan);
+  color: var(--ink);
+}
+
+.agentCard .needs_provider {
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.agentCard .missing {
+  background: #cbd2cb;
+  color: var(--ink);
 }
 
 .split {
@@ -375,6 +424,35 @@ textarea {
   margin-top: 24px;
 }
 
+.docGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.infoCard {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  background: var(--white);
+}
+
+.darkCard {
+  background: #191919;
+  border-color: #2a2a2a;
+}
+
+.topGap {
+  margin-top: 18px;
+}
+
+.list,
+.walkList {
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
 .proofGrid div {
   background: #191919;
   border-color: #2a2a2a;
@@ -410,6 +488,7 @@ small {
   .flip,
   .grid,
   .stepGrid,
+  .docGrid,
   .proofGrid {
     grid-template-columns: 1fr;
   }

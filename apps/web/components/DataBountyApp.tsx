@@ -1,17 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { AgentProfile, Bounty, DatasetManifest, ProofSummary } from "@0g-databounty/shared";
-import { API_URL, confirmBounty, createBounty, getAgents, getBounties, getExamples, getProofs, submitDataset } from "../lib/api";
+import type { AgentProfile, Bounty, DatasetManifest, ProofSummary, SetupStatus } from "@0g-databounty/shared";
+import { API_URL, confirmBounty, createBounty, getAgents, getBounties, getExamples, getProofs, getSetup, submitDataset } from "../lib/api";
 import { connectWallet, parseCreatedBountyId, sendPreparedTransaction } from "../lib/wallet";
+
+type View = "landing" | "market" | "create" | "submit" | "agents" | "proof" | "docs";
 
 const tomorrow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
 
-export function DataBountyApp() {
+const navItems: Array<{ href: string; label: string; view?: View }> = [
+  { href: "/", label: "Home", view: "landing" },
+  { href: "/market", label: "Market", view: "market" },
+  { href: "/create", label: "Create", view: "create" },
+  { href: "/submit", label: "Submit", view: "submit" },
+  { href: "/agents", label: "Agents", view: "agents" },
+  { href: "/proof", label: "Proof", view: "proof" },
+  { href: "/docs", label: "Docs", view: "docs" }
+];
+
+export function DataBountyApp({ view = "landing" }: { view?: View }) {
   const [wallet, setWallet] = useState("");
   const [bounties, setBounties] = useState<Bounty[]>([]);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [proofs, setProofs] = useState<ProofSummary | null>(null);
+  const [setup, setSetup] = useState<SetupStatus | null>(null);
   const [status, setStatus] = useState("Loading live state from the API.");
   const [error, setError] = useState("");
   const [selectedBountyId, setSelectedBountyId] = useState("");
@@ -43,11 +56,17 @@ export function DataBountyApp() {
   async function refresh() {
     setError("");
     try {
-      const [bountyData, agentData, proofData] = await Promise.all([getBounties(), getAgents(), getProofs()]);
+      const [bountyData, agentData, proofData, setupData] = await Promise.all([
+        getBounties(),
+        getAgents(),
+        getProofs(),
+        getSetup()
+      ]);
       setBounties(bountyData.bounties);
       setAgents(agentData.agents);
       setProofs(proofData);
-      setStatus(`Connected to ${API_URL}. ${bountyData.bounties.length} bounties loaded.`);
+      setSetup(setupData);
+      setStatus(`Connected to ${API_URL}. ${bountyData.bounties.length} live bounties loaded.`);
       if (!selectedBountyId && bountyData.bounties[0]) setSelectedBountyId(bountyData.bounties[0].id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not reach the API.");
@@ -59,16 +78,16 @@ export function DataBountyApp() {
     setError("");
     try {
       const examples = await getExamples();
-      setBountyForm({
+      setBountyForm((current) => ({
+        ...current,
         title: examples.bounty.title,
         summary: examples.bounty.summary,
         requirements: examples.bounty.requirements,
         formats: examples.bounty.formats.join(","),
         evaluationRubric: examples.bounty.evaluationRubric,
         privacyNotes: examples.bounty.privacyNotes ?? "",
-        rewardOg: bountyForm.rewardOg,
         deadline: examples.bounty.deadlineIso.slice(0, 16)
-      });
+      }));
       setSubmissionForm({
         title: examples.dataset.title,
         description: examples.dataset.description,
@@ -78,9 +97,9 @@ export function DataBountyApp() {
         sourceNotes: examples.dataset.sourceNotes,
         privacyDeclaration: examples.dataset.privacyDeclaration
       });
-      setStatus("Loaded a real test example from the API. It is not saved as live state until you upload and sign.");
+      setStatus("Loaded a test-ready example payload from the live API. It will not appear in the market until it is uploaded and signed.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load examples.");
+      setError(err instanceof Error ? err.message : "Could not load example data.");
     }
   }
 
@@ -93,6 +112,22 @@ export function DataBountyApp() {
     [bounties, selectedBountyId]
   );
 
+  const createBlockedReason =
+    !setup?.contract.address
+      ? "Contract deployment must be completed before creators can escrow a bounty."
+      : setup.storage.state !== "ready"
+        ? setup.storage.note
+        : "";
+
+  const submitBlockedReason =
+    !selectedBounty
+      ? "Pick a live bounty before submitting a dataset."
+      : !setup?.contract.address
+        ? "Contract deployment must be completed before contributors can submit to a bounty."
+        : setup.storage.state !== "ready"
+          ? setup.storage.note
+          : "";
+
   async function handleConnect() {
     setError("");
     try {
@@ -103,6 +138,10 @@ export function DataBountyApp() {
   }
 
   async function handleCreateBounty() {
+    if (createBlockedReason) {
+      setError(createBlockedReason);
+      return;
+    }
     setError("");
     setStatus("Uploading bounty metadata to 0G Storage.");
     try {
@@ -126,12 +165,15 @@ export function DataBountyApp() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create bounty failed.");
-      setStatus("Create bounty stopped before a fake proof could be shown.");
+      setStatus("Create bounty stopped before any fake proof could be shown.");
     }
   }
 
   async function handleSubmitDataset() {
-    if (!selectedBounty) return;
+    if (submitBlockedReason || !selectedBounty) {
+      setError(submitBlockedReason || "Choose a bounty first.");
+      return;
+    }
     setError("");
     setStatus("Uploading dataset manifest to 0G Storage.");
     try {
@@ -146,63 +188,47 @@ export function DataBountyApp() {
         sampleRows: [
           {
             project: "0G DataBounty",
-            category: "data market",
-            source: "public demo manifest",
-            usefulness: "shows the expected schema"
+            region: "APAC",
+            category: "Dataset market",
+            source: "public example row",
+            usefulness: "Demonstrates the expected schema for the validator agent."
           }
         ],
         sourceNotes: submissionForm.sourceNotes,
         privacyDeclaration: submissionForm.privacyDeclaration
       };
       const prepared = await submitDataset(manifest);
-      setStatus("Storage proof created. Send the prepared submitDataset transaction from your wallet.");
+      setStatus("Storage proof created. Sending submitDataset transaction to 0G Chain.");
       await sendPreparedTransaction(prepared.transaction);
-      setStatus("Dataset transaction mined. Use the API confirmation endpoint once the onchain submission id is known.");
+      setStatus("Dataset transaction mined. Confirm the onchain submission id so it appears in the market.");
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Dataset submission failed.");
-      setStatus("Submit stopped before a fake Storage or Chain proof could be shown.");
+      setStatus("Submit stopped before any fake Storage or Chain proof could be shown.");
     }
   }
 
-  return (
-    <main>
+  function renderNav() {
+    return (
       <nav className="nav">
-        <a href="#top" className="brand">
+        <a href="/" className="brand">
           <span className="mark">0G</span>
           <span>DataBounty</span>
         </a>
         <div className="navlinks">
-          <a href="#market">Market</a>
-          <a href="#create">Create</a>
-          <a href="#submit">Submit</a>
-          <a href="#agents">Agents</a>
-          <a href="#proof">Proof</a>
+          {navItems.map((item) => (
+            <a key={item.href} href={item.href} className={item.view === view ? "activeLink" : ""}>
+              {item.label}
+            </a>
+          ))}
         </div>
         <button onClick={handleConnect}>{wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : "Connect"}</button>
       </nav>
+    );
+  }
 
-      <section id="top" className="hero">
-        <div className="heroCopy">
-          <p className="eyebrow">Data markets for autonomous AI</p>
-          <h1>Fund the datasets agents need. Verify every step on 0G.</h1>
-          <p>
-            0G DataBounty turns dataset requests into escrowed, verifiable workflows: requirements onchain, manifests in
-            0G Storage, validator reports from 0G Compute, and settlement on 0G Chain.
-          </p>
-          <div className="actions">
-            <a className="primary" href="#create">Create bounty</a>
-            <a className="secondary" href="#walkthrough">Watch the flow</a>
-          </div>
-        </div>
-        <div className="heroImage" aria-label="Dataset routing terminal">
-          <img
-            src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80"
-            alt="Network infrastructure for decentralized data"
-          />
-        </div>
-      </section>
-
+  function renderStatusBand() {
+    return (
       <section className="statusBand">
         <div>
           <strong>Live status</strong>
@@ -210,166 +236,400 @@ export function DataBountyApp() {
         </div>
         {error && <p className="error">{error}</p>}
       </section>
+    );
+  }
 
-      <section className="section start">
+  function renderSetupCards() {
+    if (!setup) return null;
+    const cards = [
+      { title: "Contract", block: setup.contract, extra: setup.contract.address ?? "No mainnet address configured" },
+      { title: "Storage", block: setup.storage, extra: setup.signerAddress ?? "No signer configured" },
+      { title: "Compute", block: setup.compute, extra: setup.compute.provider ?? setup.signerAddress ?? "No provider selected" }
+    ];
+    return (
+      <section className="section">
         <div className="sectionHead">
           <div>
-            <p className="eyebrow">Start here</p>
-            <h2>Use the product in four steps</h2>
+            <p className="eyebrow">Mainnet setup</p>
+            <h2>Current live readiness</h2>
           </div>
-          <button onClick={loadExamples}>Load test example</button>
-        </div>
-        <div className="stepGrid">
-          <article>
-            <strong>1. Connect</strong>
-            <p>Use a wallet funded on 0G Mainnet.</p>
-          </article>
-          <article>
-            <strong>2. Create</strong>
-            <p>Upload bounty metadata to 0G Storage and escrow the reward on 0G Chain.</p>
-          </article>
-          <article>
-            <strong>3. Submit</strong>
-            <p>Contributors submit dataset manifests only after the bounty is confirmed onchain.</p>
-          </article>
-          <article>
-            <strong>4. Verify</strong>
-            <p>Proof Center displays contract, Storage roots, transactions, and Compute reports.</p>
-          </article>
-        </div>
-        <p className="notice">
-          Current mainnet readiness: {proofs?.contractAddress ? "contract configured" : "contract deployment pending funded 0G deployer"}.
-        </p>
-      </section>
-
-      <section id="market" className="section">
-        <div className="sectionHead">
-          <p className="eyebrow">Marketplace</p>
-          <h2>Open dataset bounties</h2>
           <button onClick={refresh}>Refresh</button>
         </div>
         <div className="grid">
-          {bounties.length === 0 ? (
-            <div className="empty">
-              <h3>No live bounties yet</h3>
-              <p>Create one after enabling real 0G Storage. The app will not display fake bounty proof.</p>
-            </div>
-          ) : (
-            bounties.map((bounty) => (
-              <button
-                className={`bountyCard ${selectedBounty?.id === bounty.id ? "active" : ""}`}
-                key={bounty.id}
-                onClick={() => setSelectedBountyId(bounty.id)}
-              >
-                <span>{bounty.status}</span>
-                <h3>{bounty.metadata?.title ?? `Bounty ${bounty.id}`}</h3>
-                <p>{bounty.metadata?.summary}</p>
-                <small>Root {bounty.metadataRoot.slice(0, 14)}...</small>
-              </button>
-            ))
-          )}
-        </div>
-      </section>
-
-      <section id="create" className="section split">
-        <div>
-          <p className="eyebrow">Creator flow</p>
-          <h2>Create a bounty with real 0G proof</h2>
-          <p>
-            The API uploads metadata to 0G Storage first. Your wallet then escrows the reward on 0G Chain using that root.
-          </p>
-        </div>
-        <form className="panel" onSubmit={(event) => event.preventDefault()}>
-          <input value={bountyForm.title} onChange={(event) => setBountyForm({ ...bountyForm, title: event.target.value })} />
-          <textarea value={bountyForm.summary} onChange={(event) => setBountyForm({ ...bountyForm, summary: event.target.value })} />
-          <textarea value={bountyForm.requirements} onChange={(event) => setBountyForm({ ...bountyForm, requirements: event.target.value })} />
-          <div className="two">
-            <input value={bountyForm.formats} onChange={(event) => setBountyForm({ ...bountyForm, formats: event.target.value })} />
-            <input value={bountyForm.rewardOg} onChange={(event) => setBountyForm({ ...bountyForm, rewardOg: event.target.value })} />
-          </div>
-          <textarea value={bountyForm.evaluationRubric} onChange={(event) => setBountyForm({ ...bountyForm, evaluationRubric: event.target.value })} />
-          <input type="datetime-local" value={bountyForm.deadline} onChange={(event) => setBountyForm({ ...bountyForm, deadline: event.target.value })} />
-          <button className="primaryButton" onClick={handleCreateBounty}>Upload to 0G Storage and create</button>
-        </form>
-      </section>
-
-      <section id="submit" className="section split flip">
-        <div>
-          <p className="eyebrow">Contributor flow</p>
-          <h2>Submit a dataset manifest</h2>
-          <p>
-            Contributors submit structured manifests first. Sensitive raw data can stay encrypted while validators inspect
-            declared schema, samples, sources, and privacy posture.
-          </p>
-          <div className="selected">
-            Selected bounty: <strong>{selectedBounty?.metadata?.title ?? "None"}</strong>
-          </div>
-        </div>
-        <form className="panel" onSubmit={(event) => event.preventDefault()}>
-          <input value={submissionForm.title} onChange={(event) => setSubmissionForm({ ...submissionForm, title: event.target.value })} />
-          <textarea value={submissionForm.description} onChange={(event) => setSubmissionForm({ ...submissionForm, description: event.target.value })} />
-          <div className="two">
-            <input value={submissionForm.license} onChange={(event) => setSubmissionForm({ ...submissionForm, license: event.target.value })} />
-            <input value={submissionForm.recordCount} onChange={(event) => setSubmissionForm({ ...submissionForm, recordCount: event.target.value })} />
-          </div>
-          <textarea value={submissionForm.sourceNotes} onChange={(event) => setSubmissionForm({ ...submissionForm, sourceNotes: event.target.value })} />
-          <textarea value={submissionForm.privacyDeclaration} onChange={(event) => setSubmissionForm({ ...submissionForm, privacyDeclaration: event.target.value })} />
-          <button className="primaryButton" onClick={handleSubmitDataset} disabled={!selectedBounty}>Submit dataset proof</button>
-        </form>
-      </section>
-
-      <section id="agents" className="section">
-        <div className="sectionHead">
-          <p className="eyebrow">Agent layer</p>
-          <h2>Validator agents</h2>
-        </div>
-        <div className="grid">
-          {agents.map((agent) => (
-            <article className="agentCard" key={agent.id}>
-              <span className={agent.status}>{agent.status}</span>
-              <h3>{agent.name}</h3>
-              <p>{agent.notes}</p>
-              <small>{agent.wallet}</small>
+          {cards.map((card) => (
+            <article className="agentCard" key={card.title}>
+              <span className={card.block.state}>{card.block.label}</span>
+              <h3>{card.title}</h3>
+              <p>{card.block.note}</p>
+              <small>{card.extra}</small>
             </article>
           ))}
         </div>
+        {setup.signerAddress && (
+          <p className="notice">
+            Backend signer: <strong>{setup.signerAddress}</strong> with <strong>{setup.signerBalanceOg} 0G</strong>.
+          </p>
+        )}
       </section>
+    );
+  }
 
-      <section id="proof" className="section proof">
-        <p className="eyebrow">Proof center</p>
-        <h2>What judges can verify</h2>
-        <div className="proofGrid">
-          <div>
-            <strong>Contract</strong>
-            <span>{proofs?.contractAddress ?? "Pending 0G mainnet deployment"}</span>
+  function renderLanding() {
+    return (
+      <>
+        <section className="hero">
+          <div className="heroCopy">
+            <p className="eyebrow">Data markets for autonomous AI</p>
+            <h1>Fund the datasets agents need. Verify every step on 0G.</h1>
+            <p>
+              0G DataBounty is a buyer-seller market for AI datasets. Builders post a data need, contributors submit a
+              structured manifest, validator agents score it, and every proof lives on 0G infrastructure.
+            </p>
+            <div className="actions">
+              <a className="primary" href="/docs">Understand the product</a>
+              <a className="secondary" href="/create">Try the creator flow</a>
+            </div>
           </div>
-          <div>
-            <strong>Explorer</strong>
-            <span>{proofs?.explorerUrl ?? "https://chainscan.0g.ai"}</span>
+          <div className="heroImage" aria-label="Dataset routing terminal">
+            <img
+              src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80"
+              alt="Network infrastructure for decentralized data"
+            />
           </div>
-          <div>
-            <strong>Storage roots</strong>
-            <span>{proofs?.storageRoots.length ?? 0}</span>
+        </section>
+        <section className="section start">
+          <div className="sectionHead">
+            <div>
+              <p className="eyebrow">Why it matters</p>
+              <h2>What this product actually does</h2>
+            </div>
+            <button onClick={loadExamples}>Load test example</button>
           </div>
-          <div>
-            <strong>Compute reports</strong>
-            <span>{proofs?.computeReports.length ?? 0}</span>
+          <div className="stepGrid">
+            <article>
+              <strong>For creators</strong>
+              <p>Define a dataset you need, post the reward, and turn the request into an auditable onchain bounty.</p>
+            </article>
+            <article>
+              <strong>For contributors</strong>
+              <p>Submit a dataset manifest with source notes, schema, sample rows, and privacy posture.</p>
+            </article>
+            <article>
+              <strong>For validators</strong>
+              <p>Use agent scoring to review usefulness, completeness, duplication risk, and policy fit.</p>
+            </article>
+            <article>
+              <strong>For judges</strong>
+              <p>Verify the contract, Storage roots, transactions, and validation reports without trusting the frontend.</p>
+            </article>
           </div>
-        </div>
-      </section>
+        </section>
+        {renderSetupCards()}
+        <section className="section">
+          <div className="sectionHead">
+            <div>
+              <p className="eyebrow">Try it fast</p>
+              <h2>Best test path</h2>
+            </div>
+          </div>
+          <div className="docGrid">
+            <article className="infoCard">
+              <h3>1. Load the example</h3>
+              <p>Use the built-in example to prefill the Create and Submit pages with a realistic APAC dataset workflow.</p>
+            </article>
+            <article className="infoCard">
+              <h3>2. Review setup</h3>
+              <p>Open Proof and Agents to see exactly which 0G components are live and which still need funding or a provider.</p>
+            </article>
+            <article className="infoCard">
+              <h3>3. Use the docs page</h3>
+              <p>The docs page explains the business model, judge story, verification path, and the exact example to show in a demo video.</p>
+            </article>
+          </div>
+        </section>
+      </>
+    );
+  }
 
-      <section id="walkthrough" className="section walkthrough">
-        <p className="eyebrow">Walkthrough</p>
-        <h2>Demo path</h2>
-        <ol>
-          <li>Connect a wallet on 0G Mainnet.</li>
-          <li>Create a bounty and wait for the Storage root.</li>
-          <li>Sign the escrow transaction on 0G Chain.</li>
-          <li>Submit a dataset manifest to an onchain-confirmed bounty.</li>
-          <li>Run validator scoring once Compute credentials are funded.</li>
-          <li>Open Proof Center and verify every root and transaction.</li>
-        </ol>
-      </section>
+  function renderMarket() {
+    return (
+      <>
+        <section className="pageHero">
+          <p className="eyebrow">Marketplace</p>
+          <h1>Open dataset bounties</h1>
+          <p>Every market row here comes from the live API. The page stays empty until a real bounty is created.</p>
+        </section>
+        <section className="section">
+          <div className="sectionHead">
+            <div>
+              <p className="eyebrow">Live market</p>
+              <h2>Bounties</h2>
+            </div>
+            <button onClick={refresh}>Refresh</button>
+          </div>
+          <div className="grid">
+            {bounties.length === 0 ? (
+              <div className="empty">
+                <h3>No live bounties yet</h3>
+                <p>
+                  This is deliberate. The market only lists real backend records. Use the Create page once the contract and storage
+                  setup are ready.
+                </p>
+              </div>
+            ) : (
+              bounties.map((bounty) => (
+                <button
+                  className={`bountyCard ${selectedBounty?.id === bounty.id ? "active" : ""}`}
+                  key={bounty.id}
+                  onClick={() => setSelectedBountyId(bounty.id)}
+                >
+                  <span>{bounty.status}</span>
+                  <h3>{bounty.metadata?.title ?? `Bounty ${bounty.id}`}</h3>
+                  <p>{bounty.metadata?.summary}</p>
+                  <small>Root {bounty.metadataRoot.slice(0, 18)}...</small>
+                </button>
+              ))
+            )}
+          </div>
+        </section>
+      </>
+    );
+  }
+
+  function renderCreate() {
+    return (
+      <>
+        <section className="pageHero">
+          <p className="eyebrow">Creator flow</p>
+          <h1>Create a bounty</h1>
+          <p>Creators publish a dataset need, upload the metadata manifest to 0G Storage, and escrow the reward on 0G Chain.</p>
+        </section>
+        <section className="section split">
+          <div>
+            <p className="eyebrow">Before you begin</p>
+            <h2>Checklist</h2>
+            <ul className="list">
+              <li>Connect a wallet on 0G Mainnet.</li>
+              <li>Load the example if you want a quick test payload.</li>
+              <li>Make sure the backend contract and storage cards show `ready`.</li>
+            </ul>
+            {createBlockedReason && <p className="notice">{createBlockedReason}</p>}
+            <button onClick={loadExamples}>Load test example</button>
+          </div>
+          <form className="panel" onSubmit={(event) => event.preventDefault()}>
+            <input value={bountyForm.title} onChange={(event) => setBountyForm({ ...bountyForm, title: event.target.value })} />
+            <textarea value={bountyForm.summary} onChange={(event) => setBountyForm({ ...bountyForm, summary: event.target.value })} />
+            <textarea value={bountyForm.requirements} onChange={(event) => setBountyForm({ ...bountyForm, requirements: event.target.value })} />
+            <div className="two">
+              <input value={bountyForm.formats} onChange={(event) => setBountyForm({ ...bountyForm, formats: event.target.value })} />
+              <input value={bountyForm.rewardOg} onChange={(event) => setBountyForm({ ...bountyForm, rewardOg: event.target.value })} />
+            </div>
+            <textarea value={bountyForm.evaluationRubric} onChange={(event) => setBountyForm({ ...bountyForm, evaluationRubric: event.target.value })} />
+            <textarea value={bountyForm.privacyNotes} onChange={(event) => setBountyForm({ ...bountyForm, privacyNotes: event.target.value })} />
+            <input type="datetime-local" value={bountyForm.deadline} onChange={(event) => setBountyForm({ ...bountyForm, deadline: event.target.value })} />
+            <button className="primaryButton" onClick={handleCreateBounty} disabled={Boolean(createBlockedReason)}>
+              Upload to 0G Storage and create
+            </button>
+          </form>
+        </section>
+      </>
+    );
+  }
+
+  function renderSubmit() {
+    return (
+      <>
+        <section className="pageHero">
+          <p className="eyebrow">Contributor flow</p>
+          <h1>Submit a dataset</h1>
+          <p>Contributors submit structured manifests first, so sensitive raw data can stay private until acceptance.</p>
+        </section>
+        <section className="section split flip">
+          <div>
+            <p className="eyebrow">Choose bounty</p>
+            <h2>Submission target</h2>
+            <div className="grid singleGrid">
+              {bounties.length === 0 ? (
+                <div className="empty">
+                  <h3>No live bounty to submit to</h3>
+                  <p>Create a real bounty first, then it will appear here for contributors.</p>
+                </div>
+              ) : (
+                bounties.map((bounty) => (
+                  <button
+                    className={`bountyCard ${selectedBounty?.id === bounty.id ? "active" : ""}`}
+                    key={bounty.id}
+                    onClick={() => setSelectedBountyId(bounty.id)}
+                  >
+                    <span>{bounty.status}</span>
+                    <h3>{bounty.metadata?.title ?? `Bounty ${bounty.id}`}</h3>
+                    <p>{bounty.metadata?.summary}</p>
+                  </button>
+                ))
+              )}
+            </div>
+            {submitBlockedReason && <p className="notice">{submitBlockedReason}</p>}
+          </div>
+          <form className="panel" onSubmit={(event) => event.preventDefault()}>
+            <input value={submissionForm.title} onChange={(event) => setSubmissionForm({ ...submissionForm, title: event.target.value })} />
+            <textarea value={submissionForm.description} onChange={(event) => setSubmissionForm({ ...submissionForm, description: event.target.value })} />
+            <div className="two">
+              <input value={submissionForm.license} onChange={(event) => setSubmissionForm({ ...submissionForm, license: event.target.value })} />
+              <input value={submissionForm.recordCount} onChange={(event) => setSubmissionForm({ ...submissionForm, recordCount: event.target.value })} />
+            </div>
+            <textarea value={submissionForm.sourceNotes} onChange={(event) => setSubmissionForm({ ...submissionForm, sourceNotes: event.target.value })} />
+            <textarea value={submissionForm.privacyDeclaration} onChange={(event) => setSubmissionForm({ ...submissionForm, privacyDeclaration: event.target.value })} />
+            <button className="primaryButton" onClick={handleSubmitDataset} disabled={Boolean(submitBlockedReason)}>
+              Submit dataset proof
+            </button>
+          </form>
+        </section>
+      </>
+    );
+  }
+
+  function renderAgents() {
+    return (
+      <>
+        <section className="pageHero">
+          <p className="eyebrow">Agent layer</p>
+          <h1>Validator and settlement agents</h1>
+          <p>The product shows the real backend setup instead of generic placeholders, so judges can see exactly what is configured.</p>
+        </section>
+        <section className="section">
+          <div className="grid">
+            {agents.map((agent) => (
+              <article className="agentCard" key={agent.id}>
+                <span className={agent.status}>{agent.status.replace("_", " ")}</span>
+                <h3>{agent.name}</h3>
+                <p>{agent.notes}</p>
+                <small>{agent.wallet}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+      </>
+    );
+  }
+
+  function renderProof() {
+    return (
+      <>
+        <section className="pageHero darkHero">
+          <p className="eyebrow">Proof center</p>
+          <h1>What judges can verify</h1>
+          <p>The proof page ties together contract address, Storage roots, compute reports, and transaction links.</p>
+        </section>
+        <section className="section proof">
+          <div className="proofGrid">
+            <div>
+              <strong>Contract</strong>
+              <span>{setup?.contract.address ?? "Deployment still pending funding"}</span>
+            </div>
+            <div>
+              <strong>Explorer</strong>
+              <span>{proofs?.explorerUrl ?? "https://chainscan.0g.ai"}</span>
+            </div>
+            <div>
+              <strong>Storage roots</strong>
+              <span>{proofs?.storageRoots.length ?? 0}</span>
+            </div>
+            <div>
+              <strong>Compute reports</strong>
+              <span>{proofs?.computeReports.length ?? 0}</span>
+            </div>
+          </div>
+          <div className="docGrid topGap">
+            <article className="infoCard darkCard">
+              <h3>Submission requirement</h3>
+              <p>A valid hackathon submission still needs a real 0G mainnet contract address and real onchain activity.</p>
+            </article>
+            <article className="infoCard darkCard">
+              <h3>Current blocker</h3>
+              <p>{setup?.contract.note ?? "Contract setup not loaded yet."}</p>
+            </article>
+            <article className="infoCard darkCard">
+              <h3>Live API path</h3>
+              <p>Even before full mainnet proof, judges can inspect setup, examples, and proof endpoints from the live API.</p>
+            </article>
+          </div>
+        </section>
+      </>
+    );
+  }
+
+  function renderDocs() {
+    return (
+      <>
+        <section className="pageHero">
+          <p className="eyebrow">Documentation</p>
+          <h1>What 0G DataBounty is for</h1>
+          <p>0G DataBounty turns dataset sourcing into a verifiable market for agent builders, model trainers, and AI-native apps.</p>
+        </section>
+        <section className="section">
+          <div className="docGrid">
+            <article className="infoCard">
+              <h3>The problem</h3>
+              <p>AI teams need niche, fresh, domain-specific datasets. Most datasets are hard to source, hard to verify, and impossible to buy in a trust-minimized way.</p>
+            </article>
+            <article className="infoCard">
+              <h3>The product</h3>
+              <p>Creators post dataset bounties, contributors submit manifests, validators score the work, and settlement happens only after verifiable review.</p>
+            </article>
+            <article className="infoCard">
+              <h3>Why 0G</h3>
+              <p>0G Storage keeps dataset proofs and reports, 0G Chain holds the bounty registry, and 0G Compute is the natural validator layer for scoring submissions.</p>
+            </article>
+          </div>
+        </section>
+        <section className="section">
+          <div className="sectionHead">
+            <div>
+              <p className="eyebrow">How to test</p>
+              <h2>Best demo example</h2>
+            </div>
+            <button onClick={loadExamples}>Load test example</button>
+          </div>
+          <div className="docGrid">
+            <article className="infoCard">
+              <h3>Bounty example</h3>
+              <p><strong>Title:</strong> {bountyForm.title}</p>
+              <p><strong>Reward:</strong> {bountyForm.rewardOg} 0G</p>
+              <p><strong>Formats:</strong> {bountyForm.formats}</p>
+            </article>
+            <article className="infoCard">
+              <h3>Submission example</h3>
+              <p><strong>Title:</strong> {submissionForm.title}</p>
+              <p><strong>License:</strong> {submissionForm.license}</p>
+              <p><strong>Records:</strong> {submissionForm.recordCount}</p>
+            </article>
+            <article className="infoCard">
+              <h3>Judge story</h3>
+              <p>Show landing page, open docs, load example, inspect setup, then walk through Create, Submit, Agents, and Proof as the product story.</p>
+            </article>
+          </div>
+          <ol className="walkList">
+            <li>Open Home and explain that the app is a dataset market for AI builders on 0G.</li>
+            <li>Open Docs and load the test example to show a concrete dataset request.</li>
+            <li>Open Agents and Proof to show live backend setup and current mainnet readiness.</li>
+            <li>Open Create and Submit to show the exact user flow once funding and contract deployment are complete.</li>
+          </ol>
+        </section>
+      </>
+    );
+  }
+
+  return (
+    <main>
+      {renderNav()}
+      {renderStatusBand()}
+      {view === "landing" && renderLanding()}
+      {view === "market" && renderMarket()}
+      {view === "create" && renderCreate()}
+      {view === "submit" && renderSubmit()}
+      {view === "agents" && renderAgents()}
+      {view === "proof" && renderProof()}
+      {view === "docs" && renderDocs()}
     </main>
   );
 }

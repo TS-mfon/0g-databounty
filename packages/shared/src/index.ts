@@ -98,7 +98,7 @@ export interface AgentProfile {
   name: string;
   wallet: string;
   role: "validator" | "storage" | "settlement";
-  status: "ready" | "unavailable" | "needs_funding";
+  status: "ready" | "configured" | "needs_funding" | "needs_provider" | "missing";
   lastRunAt?: string;
   notes: string;
 }
@@ -111,6 +111,22 @@ export interface ProofSummary {
   recentTransactions: Array<{ label: string; txHash: string; url: string }>;
   storageRoots: Array<{ label: string; rootHash: string; txHash?: string }>;
   computeReports: Array<{ label: string; reportRoot: string; score: number; validatorAgent: string }>;
+}
+
+export interface SetupBlock {
+  state: "ready" | "configured" | "needs_funding" | "needs_provider" | "missing";
+  label: string;
+  note: string;
+}
+
+export interface SetupStatus {
+  network: typeof ZERO_G_MAINNET;
+  signerAddress?: string;
+  signerBalanceWei?: string;
+  signerBalanceOg?: string;
+  contract: SetupBlock & { address?: string };
+  storage: SetupBlock;
+  compute: SetupBlock & { provider?: string };
 }
 
 export const dataBountyAbi = [

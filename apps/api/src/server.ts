@@ -11,6 +11,7 @@ import {
 import type { Bounty, Submission } from "@0g-databounty/shared";
 import { config } from "./config.js";
 import { validateDataset } from "./compute.js";
+import { getAgentProfiles, getSetupStatus } from "./setup.js";
 import { store } from "./store.js";
 import { uploadJsonTo0G } from "./storage.js";
 
@@ -27,18 +28,27 @@ app.use(express.json({ limit: "2mb" }));
 
 const abi = new Interface(dataBountyAbi);
 
-app.get("/health", (_req, res) => {
+app.get("/health", async (_req, res) => {
   res.json({
     ok: true,
     service: "0g-databounty-api",
-    storage: config.enableRealStorage ? "enabled" : "disabled",
-    compute: config.enableRealCompute ? "enabled" : "disabled",
-    contractConfigured: Boolean(config.contractAddress)
+    storage: config.enableRealStorage ? "configured" : "paused",
+    compute: config.enableRealCompute ? "configured" : "paused",
+    contractConfigured: Boolean(config.contractAddress),
+    signerConfigured: Boolean(config.validatorPrivateKey)
   });
 });
 
-app.get("/api/agents", (_req, res) => {
-  res.json({ agents: store.agents() });
+app.get("/api/setup", async (_req, res) => {
+  try {
+    res.json(await getSetupStatus());
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Setup check failed" });
+  }
+});
+
+app.get("/api/agents", async (_req, res) => {
+  res.json({ agents: await getAgentProfiles() });
 });
 
 app.get("/api/proofs", (_req, res) => {

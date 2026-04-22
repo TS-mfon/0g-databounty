@@ -1,4 +1,4 @@
-import type { AgentProfile, Bounty, ProofSummary, Submission } from "@0g-databounty/shared";
+import type { Bounty, ProofSummary, Submission } from "@0g-databounty/shared";
 import { ZERO_G_MAINNET } from "@0g-databounty/shared";
 import { config } from "./config.js";
 
@@ -27,31 +27,6 @@ export const store = {
   saveSubmission(submission: Submission) {
     submissions.set(submission.id, submission);
     return submission;
-  },
-  agents(): AgentProfile[] {
-    const configured = Boolean(config.validatorPrivateKey && config.computeProvider);
-    return [
-      {
-        id: "quality-sentinel",
-        name: "Quality Sentinel",
-        wallet: configured ? "validator-wallet-configured-server-side" : "0x0000000000000000000000000000000000000000",
-        role: "validator",
-        status: configured ? "ready" : "unavailable",
-        notes: configured
-          ? "Validator is configured to call 0G Compute and attach reports."
-          : "Set VALIDATOR_PRIVATE_KEY and ZERO_G_COMPUTE_PROVIDER to enable validation."
-      },
-      {
-        id: "storage-keeper",
-        name: "Storage Keeper",
-        wallet: "0G Storage SDK",
-        role: "storage",
-        status: config.enableRealStorage ? "ready" : "unavailable",
-        notes: config.enableRealStorage
-          ? "0G Storage uploads are enabled."
-          : "ZERO_G_ENABLE_REAL_STORAGE must be true before uploads are accepted."
-      }
-    ];
   },
   proofSummary(): ProofSummary {
     const recentTransactions = [...bounties.values()]
